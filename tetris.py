@@ -7,12 +7,30 @@ import os
 import sys
 from datetime import datetime
 import sys
-import termios
-import tty
 
 ########### UTILS ##################
+if os.name == "nt":
+    import msvcrt
+else:
+    import tty
+    import termios
 
-def getch():
+def getch2():
+    key_char = "q"
+    while True:
+        # Check if a keypress is waiting in the buffer
+        if msvcrt.kbhit():
+            # Read the key character (returns a byte string like b'a')
+            key = msvcrt.getch()
+            
+            # Decode bytes to a string
+            key_char = key.decode('utf-8', errors='ignore')
+            #print(f"INFO. You pressed: {key_char} (Raw: {key})")
+            break
+
+    return key_char.lower()
+
+def getch1():
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
@@ -21,6 +39,8 @@ def getch():
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
     return ch
+
+ALL_COORDS = [ [-1,-1], [0,-1], [1,-1], [-1,0], [0,0], [1,0], [-1,1], [0,1], [1,1], ]
 
 ROTATE_CW = {
     (0,0):(0,0),
@@ -41,7 +61,7 @@ ROTATE_CW = {
     (-2, 0):( 0, 2)
 }
 ROTATE_CCW = {ROTATE_CW[key]:key for key in ROTATE_CW.keys()}
-# Helper Classes
+
 REL_COORD = {
     "I":[[ 0,1], [0,0], [0,-1], [ 0,-2]],
     "J":[[ 0,1], [0,0], [0,-1], [-1,-1]],
@@ -50,7 +70,15 @@ REL_COORD = {
     "Z":[[-1,1], [0,0], [0, 1], [ 1, 0]],
     "O":[[ 1,0], [0,0], [0, 1], [ 1, 1]],
     "T":[[-1,0], [0,0], [1, 0], [ 0, 1]],
+    "h":[[-1,-1],[1,-1],[1, 0], [-1,0]],
+    "r":[[-1,-1],[0,-1],[1, 0], [ 1,1]],
+    "w":[[-1,0],[0,-1],[1, -1], [ 1,0]],
+    "m":[[-1,0],[0, 1],[1,  1], [ 1,0]],
 }
+
+LTTR = "IJLSZOT"
+LTTR2 = list(REL_COORD.keys())
+
 CARD = {
     "n": [0,1], "s": [0, -1],"e": [1,0], "w": [-1,0],
 }
@@ -61,6 +89,7 @@ class Tetrimino(object):
         self.coords = copy.deepcopy(rel_coords)
         self.ctr = [5,16]
         self.update_coords()
+        self.score = 0
 
     def update_coords(self):
         for ii, coord in enumerate(self.coords):
@@ -93,22 +122,15 @@ class Tetrimino(object):
 
         self.update_coords()
 
-TETRIMINO_I = Tetrimino(REL_COORD["I"])
-TETRIMINO_L = Tetrimino(REL_COORD["L"])
-TETRIMINO_J = Tetrimino(REL_COORD["J"])
-TETRIMINO_S = Tetrimino(REL_COORD["S"])
-TETRIMINO_Z = Tetrimino(REL_COORD["Z"])
-TETRIMINO_O = Tetrimino(REL_COORD["O"])
-TETRIMINO_T = Tetrimino(REL_COORD["T"])
 
-LTTR = "ILJSZOT"
 
 # Constants
 OUTPUT = open("sample.txt").readlines()
-SPACE = " "
-ROW = [" ", " "," "," "," "," "," "," "," "," ",]
-N_SPACES = len(ROW)
+SPACE = "."
+N_SPACES = 10
 RANGE_SPACES = range(N_SPACES)
+ROW = [SPACE for x in RANGE_SPACES]
+
 
 BLOCK = "O"
 N_ROWS = 20
@@ -120,12 +142,15 @@ KEYS_TRANSLATIONS = {
     "a": "w",
     "s": "s",
     "d": "e",
-    "w": "n",
+    "e": "n",
+    "w": "s",
 }
 
 KEYS_ROTATIONS = {
-    "p": "cw",
-    "l": "ccw"
+    "p": "ccw",
+    "l": "cw",
+    "f": "cw",
+    "c": "ccw"
 }
 
 # Functions
@@ -144,6 +169,7 @@ class MatrixRows(object):
     def __init__(self):
         self.coords =  [[x,-1] for x in RANGE_ROWS]
         self.coords += [[x, 0] for x in [0,1,2,3,5,6,7,8,9]]
+        self.coords += [[x, 1] for x in [1,2,6,7,8]]
         self.updated = False
 
     def update_coords(self, new_coords):
@@ -155,25 +181,35 @@ class Tetris(object):
     def __init__(self, args):
         self.automate = args.automate
         self.verbose = args.verbose
+        self.shapes_type = args.shapes_type
         self.matrix = copy.deepcopy(MATRIX)
         self.rows = MatrixRows()
+        self.complete_row = []
+        self.score = 0
+        if self.shapes_type == "r":
+            self.next_letter = "R" 
+        elif self.shapes_type == "a":
+            self.next_letter = random.choice(LTTR2)
+        else:
+            self.next_letter = random.choice(LTTR)
         self.get_new_shape()
         self.update_matrix()
+        
 
     def print_matrix(self):
         #os.system("cls" if os.name == "nt" else "clear")
-        print(" ----------")
+        #my_print(" ----------")
         for y in range(N_ROWS):
             row_str = "".join(self.matrix[N_ROWS - 1 - y])
-            row_display = "|" + row_str + "|"
-            print(row_display)
-        print(" ----------")
+            row_display = row_str
+            my_print(row_display)
+        #my_print(" ----------")
 
     def check_shape_landed(self):
         for rc in self.rows.coords:
             for tc in self.shape.coords:
                 if tc[0] == rc[0] and tc[1] == rc[1]:
-                    self.move_shape("w")
+                    self.move_shape("e")
                     return True
                     break
         
@@ -193,15 +229,30 @@ class Tetris(object):
             x = coord[0]
             y = coord[1]
             if x in RANGE_SPACES and y in RANGE_ROWS:
-                self.matrix[y][x] = "X"
-            
+                self.matrix[y][x] = "H"
 
+        for coord in self.complete_row:
+            #print("DEBUG: row coord", coord)
+            x = coord[0]
+            y = coord[1]
+            if x in RANGE_SPACES and y in RANGE_ROWS:
+                self.matrix[y][x] = "+"
+            
+        self.score += 1
         self.print_matrix()
 
     def get_new_shape(self):
-        self.next_letter = random.choice(LTTR)
-        print("INFO. ltr:", self.next_letter)
-        self.shape = Tetrimino(copy.deepcopy(REL_COORD[self.next_letter]))
+        if self.shapes_type == "r":
+            rel_coord = random.sample(ALL_COORDS, 4)
+            self.shape = Tetrimino(rel_coord)
+        elif self.shapes_type == "a":
+            self.shape = Tetrimino(copy.deepcopy(REL_COORD[self.next_letter]))
+            self.next_letter = random.choice(LTTR2)
+        else:
+            self.shape = Tetrimino(copy.deepcopy(REL_COORD[self.next_letter]))
+            self.next_letter = random.choice(LTTR)
+            
+        
 
     def move_shape(self, key):
         if key in KEYS_TRANSLATIONS.keys():
@@ -217,6 +268,7 @@ class Tetris(object):
 
     def remove_full_rows(self):
         rows_dict = {}
+        self.complete_row = []
         for coord in self.rows.coords:
             if coord[1] < 0:
                 continue
@@ -233,20 +285,40 @@ class Tetris(object):
                     rows_dict[y][ii][1] = new_y
                 new_coords += rows_dict[y]
                 new_y += 1
+            else:
+                self.complete_row += rows_dict[y]
+                
+                self.score += 1
+
+        if len(self.complete_row) > 0:
+            print("INFO: line(s) removed!")
+            self.update_matrix()
+            time.sleep(0.5)
+            self.complete_row = []
             
+    
         self.rows.coords = new_coords
     
 
     def run(self):
         key = "s"
         while key != "q":
-            self.move_shape(key)     
+            print("Score:", self.score,"Next:", self.next_letter)
+            self.move_shape(key)    
             if self.check_shape_landed():
                 self.add_shape_to_rows()
                 self.remove_full_rows()
                 self.get_new_shape()
+                key = "e"
+            
             self.update_matrix()
-            key = getch()
+            
+            if key != "w":
+                if os.name == "nt":
+                    key = getch2()
+                else:
+                    key = getch1()
+        print("".join(["\n" for x in RANGE_ROWS]))
 
 # Tests
 def test(args):
@@ -268,6 +340,7 @@ if __name__=="__main__":
     parser.add_argument("-a", "--automate", action="store_true", help="automate")
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
     parser.add_argument("-t", "--test", action="store_true", help="test")
+    parser.add_argument("-s", "--shapes_type", default = "n", type=str, help="shapes_types. n:normal, a:additional,r:random")
 
     args = parser.parse_args()
     print(args)
