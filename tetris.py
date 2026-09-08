@@ -89,7 +89,6 @@ class Tetrimino(object):
         self.coords = copy.deepcopy(rel_coords)
         self.ctr = [5,16]
         self.update_coords()
-        self.score = 0
 
     def update_coords(self):
         for ii, coord in enumerate(self.coords):
@@ -228,6 +227,7 @@ class Tetris(object):
             #print("DEBUG: row coord", coord)
             x = coord[0]
             y = coord[1]
+
             if x in RANGE_SPACES and y in RANGE_ROWS:
                 self.matrix[y][x] = "H"
 
@@ -238,7 +238,7 @@ class Tetris(object):
             if x in RANGE_SPACES and y in RANGE_ROWS:
                 self.matrix[y][x] = "+"
             
-        self.score += 1
+        
         self.print_matrix()
 
     def get_new_shape(self):
@@ -262,6 +262,7 @@ class Tetris(object):
             move = KEYS_ROTATIONS[key]
             print("DEBUG: move", move)
             self.shape.rotate(move)
+
 
     def add_shape_to_rows(self):
         self.rows.update_coords(self.shape.coords)
@@ -288,7 +289,7 @@ class Tetris(object):
             else:
                 self.complete_row += rows_dict[y]
                 
-                self.score += 1
+                self.score += 10
 
         if len(self.complete_row) > 0:
             print("INFO: line(s) removed!")
@@ -302,22 +303,34 @@ class Tetris(object):
 
     def run(self):
         key = "s"
+        ctr = 1
+        level = 0
         while key != "q":
-            print("Score:", self.score,"Next:", self.next_letter)
+            
             self.move_shape(key)    
             if self.check_shape_landed():
                 self.add_shape_to_rows()
                 self.remove_full_rows()
                 self.get_new_shape()
                 key = "e"
-            
+                self.score += 1
+                if self.score < 1100:
+                    level = self.score // 100
+
+            print("Level", level,"Score:", self.score,"Next:", self.next_letter)
             self.update_matrix()
             
-            if key != "w":
-                if os.name == "nt":
-                    key = getch2()
+            if  key != "w":
+                if ctr % (12 - level) == 0:
+                    key = "s"
                 else:
-                    key = getch1()
+                    if os.name == "nt":
+                        key = getch2()
+                    else:
+                        key = getch1()
+
+                ctr += 1
+
         print("".join(["\n" for x in RANGE_ROWS]))
 
 # Tests
