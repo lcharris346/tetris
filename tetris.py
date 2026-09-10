@@ -151,7 +151,7 @@ KEYS_TRANSLATIONS = {
 
 KEYS_ROTATIONS = {
     "s": "ccw",
-    "p": "ccw",
+    "k": "ccw",
     "l": "cw",
 }
 
@@ -230,7 +230,7 @@ class Tetris(object):
         #os.system("cls" if os.name == "nt" else "clear")
         print("\n")
         for y in range(N_ROWS):
-            row_str = "".join(self.matrix[N_ROWS - 1 - y])
+            row_str ="                " +  "".join(self.matrix[N_ROWS - 1 - y])
             print(row_str)
         #mprint(" ----------")
 
@@ -303,11 +303,13 @@ class Tetris(object):
         while key != "q":
             #os.system(CLEAR)
             self.update_matrix()
-            print("Level", self.level,"Score:", self.score,"Next:", self.next_letter)
+            print("        Level", self.level,"Score:", self.score,"Next:", self.next_letter)
         
             if  key != "w":
                 time.sleep( (11 - self.level) * 0.05)
                 key = getch()
+                if key == "q":
+                    break           
 
             self.move_shape(key)   
 
@@ -318,7 +320,7 @@ class Tetris(object):
                 key = "x"
                 self.score += 1
                 if self.level < 10:
-                    self.level = (self.score + 100) // 100
+                    self.level = (self.score + 40) // 40
 
 # Tests
 def test(args):
