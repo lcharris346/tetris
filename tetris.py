@@ -12,25 +12,29 @@ import sys
 if os.name == "nt":
     import msvcrt
     CLEAR = "cls"
-    def getch():
+    def getch(mode):
         
         key_char = "x"
         # Check if a keypress is waiting in the buffer
-        if msvcrt.kbhit():
-            # Read the key character (returns a byte string like b'a')
-            key = msvcrt.getch()
-            
-            # Decode bytes to a string
-            key_char = key.decode('utf-8', errors='ignore')
-            #print(f"INFO. You pressed: {key_char} (Raw: {key})")
-            
+        while 1:
+            if msvcrt.kbhit():
+                # Read the key character (returns a byte string like b'a')
+                key = msvcrt.getch()
+                
+                # Decode bytes to a string
+                key_char = key.decode('utf-8', errors='ignore')
+                #print(f"INFO. You pressed: {key_char} (Raw: {key})")
+                break
+            if mode == True:
+                break
 
         return key_char.lower()
 else:
     import tty
     import termios
     CLEAR = "clear"
-    def getch():
+    print("WARNING. Executing in step mode")
+    def getch(mode):
         ch = "x"
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
@@ -75,7 +79,6 @@ LTTR_COORD = {
     "T":[[-1,0], [0,0], [1, 0], [ 0, 1]],
     "h":[[-1,-1],[1,-1],[1, 0], [-1,0]],
     "r":[[-1,-1],[0,-1],[1, 0], [ 1,1]],
-    #"w":[[-1,0],[0,-1],[1, -1], [ 1,0]],
     "m":[[-1,0],[0, 1],[1,  1], [ 1,0]],
     "y":[[-1,-1], [0,0],[1,-1],[0,1]]
 }
@@ -185,6 +188,7 @@ class Tetris(object):
         self.verbose = args.verbose
         self.shapes_type = args.shapes_type
         self.level = args.level
+        self.mode = args.mode
         self.matrix = copy.deepcopy(MATRIX)
         self.rows = MatrixRows()
         self.complete_row = []
@@ -300,16 +304,20 @@ class Tetris(object):
 
     def run(self):
         key = "x"
+        ctr = 1
         while key != "q":
             #os.system(CLEAR)
             self.update_matrix()
             print("        Level", self.level,"Score:", self.score,"Next:", self.next_letter)
         
             if  key != "w":
-                time.sleep( (11 - self.level) * 0.05)
-                key = getch()
-                if key == "q":
-                    break           
+                if os.name != "nt" or self.mode == True or ctr % 2 == 0 or key == "x":
+                    time.sleep( (11 - self.level) * 0.05)
+                    key = getch(self.mode)
+                    if key == "q":
+                        break
+                else:
+                    key = "x"           
 
             self.move_shape(key)   
 
@@ -321,6 +329,8 @@ class Tetris(object):
                 self.score += 1
                 if self.level < 10:
                     self.level = (self.score + 40) // 40
+
+            ctr += 1
 
 # Tests
 def test(args):
@@ -344,6 +354,7 @@ if __name__=="__main__":
     parser.add_argument("-t", "--test", action="store_true", help="test")
     parser.add_argument("-s", "--shapes_type", default = "n", type=str, help="shapes_types. n:normal, a:additional,r:random")
     parser.add_argument("-l", "--level", default = 1, type = int, help="level. 1 - 10")
+    parser.add_argument("-m", "--mode", action="store_true", help="mode:false=step,true=continous")
 
     args = parser.parse_args()
     print(args)
